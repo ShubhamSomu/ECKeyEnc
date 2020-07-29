@@ -13,13 +13,20 @@ import java.security.PublicKey;
 import java.security.SecureRandom;
 import java.security.Security;
 import java.security.spec.ECGenParameterSpec;
+import java.security.spec.KeySpec;
 import java.util.Base64;
+import java.util.Random;
 
 import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;
 import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.KeyAgreement;
 import javax.crypto.NoSuchPaddingException;
+import javax.crypto.SecretKey;
+import javax.crypto.SecretKeyFactory;
+import javax.crypto.spec.IvParameterSpec;
+import javax.crypto.spec.PBEKeySpec;
+import javax.crypto.spec.SecretKeySpec;
 
 import org.bouncycastle.jce.ECNamedCurveTable;
 import org.bouncycastle.jce.interfaces.ECPrivateKey;
@@ -98,19 +105,60 @@ public class Encryptor {
         return cipher;
     }
 
-    public String encryptData(Cipher cipher, String msg, PublicKey publicKey) throws InvalidKeyException, BadPaddingException, IllegalBlockSizeException {
-        byte[] plainTextBytes = msg.getBytes();
+    public String encryptData(Cipher cipher, String msg, PublicKey publicKey, String commonSecret) throws InvalidKeyException, BadPaddingException, IllegalBlockSizeException, NoSuchPaddingException, NoSuchAlgorithmException {
+        String salt = "1497559c82a55b029beca8ae45c3958337fd7abef0eb6dafb33574fe42604c8a"; // use token
+        try
+        {
+            Random rand = new SecureRandom();
+            byte[] iv = new byte[16];
+            rand.nextBytes(iv);
+            String ivString = salt.substring(0,16);
+            iv = new byte[] { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+            iv = ivString.getBytes();
+            System.out.println("Length"+iv.length);
 
-        cipher.init(Cipher.ENCRYPT_MODE, publicKey, new SecureRandom());
-        byte[] cipherText = cipher.doFinal(plainTextBytes);
-        String base64EncText = Base64.getEncoder().encodeToString(cipherText);
-        return base64EncText;
+            IvParameterSpec ivspec = new IvParameterSpec(iv);
+
+            SecretKeyFactory factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256");
+            KeySpec spec = new PBEKeySpec(commonSecret.toCharArray(), salt.getBytes(), 65536, 256);
+            SecretKey tmp = factory.generateSecret(spec);
+            SecretKeySpec secretKeySpec = new SecretKeySpec(tmp.getEncoded(), "AES");
+
+            cipher = Cipher.getInstance("AES/CBC/PKCS5Padding");
+            cipher.init(Cipher.ENCRYPT_MODE, secretKeySpec, ivspec);
+            return Base64.getEncoder().encodeToString(cipher.doFinal(msg.getBytes("UTF-8")));
+        }
+        catch (Exception e)
+        {
+            System.out.println("Error while encrypting: " + e.toString());
+        }
+        return null;
     }
 
-    public String decryptData(Cipher cipher, String base64EncText, PrivateKey privateKey) throws InvalidKeyException, BadPaddingException, IllegalBlockSizeException {
-        byte[] cipherText = Base64.getDecoder().decode(base64EncText);
-        cipher.init(Cipher.DECRYPT_MODE, privateKey, new SecureRandom());
-        String plainText = new String(cipher.doFinal(cipherText));
-        return plainText;
+    public String decryptData(Cipher cipher, String base64EncText, PrivateKey privateKey, String commonSecret) throws InvalidKeyException, BadPaddingException, IllegalBlockSizeException, NoSuchPaddingException, NoSuchAlgorithmException {
+        String salt = "1497559c82a55b029beca8ae45c3958337fd7abef0eb6dafb33574fe42604c8a"; // use token
+        try
+        {
+            String ivString = salt.substring(0,16);
+            Random rand = new SecureRandom();
+            byte[] iv = new byte[16];
+            rand.nextBytes(iv);
+            iv = ivString.getBytes();
+            System.out.println("Length"+iv.length);
+            IvParameterSpec ivspec = new IvParameterSpec(iv);
+
+            SecretKeyFactory factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256");
+            KeySpec spec = new PBEKeySpec(commonSecret.toCharArray(), salt.getBytes(), 65536, 256);
+            SecretKey tmp = factory.generateSecret(spec);
+            SecretKeySpec secretKey = new SecretKeySpec(tmp.getEncoded(), "AES");
+
+            cipher = Cipher.getInstance("AES/CBC/PKCS5PADDING");
+            cipher.init(Cipher.DECRYPT_MODE, secretKey, ivspec);
+            return new String(cipher.doFinal(Base64.getDecoder().decode(base64EncText)));
+        }
+        catch (Exception e) {
+            System.out.println("Error while decrypting: " + e.toString());
+        }
+        return null;
     }
 }

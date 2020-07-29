@@ -24,8 +24,8 @@ public class IntruderKeyExchange {
             byte[] normalisedPrivateKey = encryptor.normalisePrivateKey(keyPair.getPrivate());
             byte[] normalisedPublicKey = encryptor.normalisePublicKey(keyPair.getPublic());
 
-            normalisedServerKeyMap.put("serverPrivateKey", normalisedPrivateKey);
-            normalisedServerKeyMap.put("serverPublicKey", normalisedPublicKey);
+            normalisedServerKeyMap.put("intruderPrivateKey", normalisedPrivateKey);
+            normalisedServerKeyMap.put("intruderPublicKey", normalisedPublicKey);
             return normalisedServerKeyMap;
         }
 }
